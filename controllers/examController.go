@@ -139,92 +139,102 @@ func GetExamByID(c *gin.Context) {
 
 // Update an exam by ID
 func UpdateExam(c *gin.Context) {
-	var exam models.Exam
-	if err := config.DB.First(&exam, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
-		return
-	}
-
-	var input struct {
-		OrderID   int64     `json:"order_id"`
-		PacketID  int64     `json:"packet_id"`
-		UserID    int64     `json:"user_id"`
-		Score     float64   `json:"score"`
-		StartedAt time.Time `json:"started_at"`
-		EndedAt   time.Time `json:"ended_at"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input", "details": err.Error()})
-		return
-	}
-
-	// Update hanya field yang tidak kosong
-    if input.OrderID != 0 {
-        exam.OrderID = input.OrderID
+    var exam models.Exam
+    if err := config.DB.First(&exam, c.Param("id")).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Ujian tidak ditemukan"})
+        return
     }
 
-    if input.PacketID != 0 {
-        exam.PacketID = input.PacketID
+    // Cek waktu ujian
+    if exam.EndedAt.Before(time.Now()) {
+        c.JSON(http.StatusForbidden, gin.H{"error": "Ujian sudah selesai, tidak bisa diedit"})
+        return
     }
 
-    if input.UserID != 0 {
-        exam.UserID = input.UserID
+    var input struct {
+        OrderID int64 `json:"order_id"`
+        PacketID int64 `json:"packet_id"`
+		UserID int64 `json:"user_id"`
+        Score float64 `json:"score"`
     }
 
-    if input.Score != 0 {
-        exam.Score = input.Score
+    if err := c.ShouldBindJSON(&input); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Input tidak valid"})
+        return
     }
 
-    if !input.StartedAt.IsZero() {
-        exam.StartedAt = input.StartedAt
-    }
-
-    if !input.EndedAt.IsZero() {
-        exam.EndedAt = input.EndedAt
-    }
-
+    // Perbarui hanya field yang diperlukan
+    exam.OrderID = input.OrderID
+    exam.PacketID = input.PacketID
+	exam.UserID = input.UserID
+    exam.Score = input.Score
     exam.UpdatedAt = time.Now()
 
+    if err := config.DB.Save(&exam).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui ujian"})
+        return
+    }
 
-	// Save changes to the database
-	if err := config.DB.Save(&exam).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update exam", "details": err.Error()})
-		return
-	}
+    // Kirim respons
+    type Response struct {
+        ID int `json:"id"`
+        OrderID int64 `json:"order_id"`
+        PacketID int64 `json:"packet_id"`
+		UserID int64 `json:"user_id"`
+        Score float64 `json:"score"`
+        StartedAt string `json:"started_at"`
+        EndedAt string `json:"ended_at"`
+        CreatedAt string `json:"created_at"`
+        UpdatedAt string `json:"updated_at"`
+    }
 
-	type Response struct {
-		ID        int     `json:"id"`
-		OrderID   int64   `json:"order_id"`
-		PacketID  int64   `json:"packet_id"`
-		UserID    int64   `json:"user_id"`
-		Score     float64 `json:"score"`
-		StartedAt string  `json:"started_at"`
-		EndedAt   string  `json:"ended_at"`
-		CreatedAt string  `json:"created_at"`
-		UpdatedAt string  `json:"updated_at"`
-	}
+    response := Response{
+        ID: exam.ID,
+        OrderID: exam.OrderID,
+        PacketID: exam.PacketID,
+		UserID: exam.UserID,
+        Score: exam.Score,
+        StartedAt: exam.StartedAt.Format("2006-01-02 15:04:05"),
+        EndedAt: exam.EndedAt.Format("2006-01-02 15:04:05"),
+        CreatedAt: exam.CreatedAt.Format("2006-01-02 15:04:05"),
+        UpdatedAt: exam.UpdatedAt.Format("2006-01-02 15:04:05"),
+    }
 
-	response := Response{
-		ID:        exam.ID,
-		OrderID:   exam.OrderID,
-		PacketID:  exam.PacketID,
-		UserID:    exam.UserID,
-		Score:     exam.Score,
-		StartedAt: exam.StartedAt.Format("2006-01-02 15:04:05"),
-		EndedAt:   exam.EndedAt.Format("2006-01-02 15:04:05"),
-		CreatedAt: exam.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: exam.UpdatedAt.Format("2006-01-02 15:04:05"),
-	}
-
-	c.JSON(http.StatusOK, response)
+    c.JSON(http.StatusOK, gin.H{
+		"id":         response.ID,
+		"order_id":   response.OrderID,
+		"packet_id":  response.PacketID,
+		"user_id":    response.UserID,
+		"score":      response.Score,
+		"started_at": response.StartedAt,
+		"ended_at":   response.EndedAt,
+		"created_at": response.CreatedAt,
+		"updated_at": response.UpdatedAt,
+        "message": "Ujian berhasil diperbarui",
+    })
 }
+
 
 // Delete an exam by ID
 func DeleteExam(c *gin.Context) {
-	if err := config.DB.Delete(&models.Exam{}, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "Exam deleted successfully"})
+    var exam models.Exam
+    if err := config.DB.First(&exam, c.Param("id")).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Ujian tidak ditemukan"})
+        return
+    }
+
+    // Cek waktu ujian
+    if exam.EndedAt.Before(time.Now()) {
+        c.JSON(http.StatusForbidden, gin.H{"error": "Ujian sudah selesai, tidak bisa dihapus"})
+        return
+    }
+
+    if err := config.DB.Delete(&exam).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus ujian"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "message": "Ujian berhasil dihapus",
+    })
 }
