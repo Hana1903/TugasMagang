@@ -14,11 +14,10 @@ import (
 // Create a new question
 func CreateQuestion(c *gin.Context) {
 	var input struct {
-		IDPackage     int64  `json:"id_package" binding:"required"`
+		PacketID     int64  `json:"packet_id" binding:"required"`
 		Question      string `json:"question" binding:"required"`
 		Answer        string `json:"answer"`
 		CorrectAnswer string `json:"correct_answer"`
-		PacketID      int64  `json:"packet_id"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -36,11 +35,10 @@ func CreateQuestion(c *gin.Context) {
 	}
 
 	question := models.Question{
-		IDPackage:     input.IDPackage,
+		PacketID:      input.PacketID,
 		Question:      input.Question,
 		Answer:        formattedAnswer,
 		CorrectAnswer: input.CorrectAnswer,
-		PacketID:      input.PacketID,
 		IsCorrect:     isCorrect,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -83,28 +81,44 @@ func GetQuestions(c *gin.Context) {
 	c.JSON(http.StatusOK, responses)
 }
 
-// Get questions by package ID
-func GetQuestionsByPackageID(c *gin.Context) {
-	packageIDStr := c.Param("id_package")
-	packageID, err := strconv.ParseInt(packageIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid package ID"})
+func GetQuestionsByPacketID(c *gin.Context) {
+	// Ambil parameter packet_id
+	PacketIDStr := c.Param("packet_id")
+
+	// Periksa apakah kosong
+	if PacketIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "PacketID is required"})
 		return
 	}
 
+	// Konversi string ke int64
+	PacketID, err := strconv.ParseInt(PacketIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid PacketID format"})
+		return
+	}
+
+	// Ambil pertanyaan berdasarkan PacketID
 	var questions []models.Question
-	if err := config.DB.Where("id_package = ?", packageID).Find(&questions).Error; err != nil {
+	if err := config.DB.Where("packet_id = ?", PacketID).Find(&questions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	// Periksa apakah ada hasil
 	if len(questions) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "No questions found for the given package ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No questions found for the given PacketID"})
 		return
 	}
 
-	c.JSON(http.StatusOK, questions)
+	var responses []models.QuestionResponse
+	for _, question := range questions {
+		responses = append(responses, question.ToResponse())
+	}
+	c.JSON(http.StatusOK, responses)
+	
 }
+
 
 // Get a question by ID
 func GetQuestionByID(c *gin.Context) {
@@ -125,11 +139,10 @@ func UpdateQuestion(c *gin.Context) {
 	}
 
 	var input struct {
-		IDPackage     int64  `json:"id_package" binding:"required"`
+		PacketID     int64  `json:"packet_id" binding:"required"`
 		Question      string `json:"question" binding:"required"`
 		Answer        string `json:"answer"`
 		CorrectAnswer string `json:"correct_answer"`
-		PacketID      int64  `json:"packet_id"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -147,11 +160,10 @@ func UpdateQuestion(c *gin.Context) {
 	}
 
 	// Update fields
-	question.IDPackage = input.IDPackage
+	question.PacketID = input.PacketID
 	question.Question = input.Question
 	question.Answer = formattedAnswer
 	question.CorrectAnswer = input.CorrectAnswer
-	question.PacketID = input.PacketID
 	question.IsCorrect = isCorrect
 	question.UpdatedAt = time.Now()
 

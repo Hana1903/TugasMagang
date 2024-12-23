@@ -67,3 +67,37 @@ func DeletePacket(c *gin.Context) {
 	config.DB.Delete(&packet)
 	c.JSON(http.StatusOK, gin.H{"message": "Packet deleted successfully!"})
 }
+
+func GetPacketsByUser(c *gin.Context) {
+	var orders []models.Order
+	userID := c.Param("id") // Mendapatkan userID dari parameter URL
+
+	// Menemukan semua order yang memiliki id_user = userID dan status = 1
+	// Melakukan join ke tabel packet berdasarkan id_packet
+	if err := config.DB.
+		Where("id_user = ? AND status = ?", userID, 1).
+		Joins("JOIN packets ON packets.id = orders.id_packet").
+		Find(&orders).
+		Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tidak ada paket ditemukan untuk pengguna ini!"})
+		return
+	}
+
+	// Menyiapkan slice untuk menyimpan data packet yang terkait
+	var packets []models.Packet
+
+	// Ambil data packet terkait dari setiap order
+	for _, order := range orders {
+		var packet models.Packet
+		// Mendapatkan packet berdasarkan id_packet dari order
+		if err := config.DB.First(&packet, order.IDPacket).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Paket tidak ditemukan!"})
+			return
+		}
+		// Menambahkan packet ke slice packets
+		packets = append(packets, packet)
+	}
+
+	// Mengembalikan data paket
+	c.JSON(http.StatusOK, packets)
+}

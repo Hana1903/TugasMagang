@@ -117,6 +117,40 @@ func GetExams(c *gin.Context) {
 	c.JSON(http.StatusOK, exams)
 }
 
+// Get exams by packet ID
+func GetExamsByPacket(c *gin.Context) {
+	// Ambil parameter package_id dari query string
+	PacketID := c.Query("packet_id")
+	if PacketID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "packet_id is required"})
+		return
+	}
+
+	// Konversi package_id menjadi integer
+	id, err := strconv.Atoi(PacketID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid packet_id"})
+		return
+	}
+
+	// Query untuk mengambil semua exam berdasarkan package_id
+	var exams []models.Exam
+	if err := config.DB.Where("packet_id = ?", id).Find(&exams).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve exams", "details": err.Error()})
+		return
+	}
+
+	// Cek apakah data ditemukan
+	if len(exams) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"message": "no exams found for the given packet_id"})
+		return
+	}
+
+	// Berikan response dalam format JSON
+	c.JSON(http.StatusOK, exams)
+}
+
+
 // Get an exam by ID
 func GetExamByID(c *gin.Context) {
 	var exam models.Exam
@@ -135,6 +169,37 @@ func GetExamByID(c *gin.Context) {
 		"created_at": exam.CreatedAt.Format("2006-01-02 15:04:05"),
 		"updated_at": exam.UpdatedAt.Format("2006-01-02 15:04:05"),
 	})
+}
+
+func GetExamWithQuestions(c *gin.Context) {
+	// Ambil ID exam dari parameter
+	examID := c.Param("id")
+
+	// Cari exam berdasarkan ID
+	var exam models.Exam
+	if err := config.DB.First(&exam, examID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
+		return
+	}
+
+	// Cari semua pertanyaan berdasarkan packet_id dari exam
+	var questions []models.Question
+	if err := config.DB.Where("packet_id = ?", exam.PacketID).Find(&questions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve questions"})
+		return
+	}
+
+	// Format data output
+	var questionResponses []models.QuestionResponse
+	for _, question := range questions {
+		questionResponses = append(questionResponses, question.ToResponse())
+	}
+
+	// Response final
+    c.JSON(http.StatusOK, gin.H{
+        "exam": exam,
+        "questions": questionResponses,
+    })
 }
 
 // Update an exam by ID
@@ -238,3 +303,4 @@ func DeleteExam(c *gin.Context) {
         "message": "Ujian berhasil dihapus",
     })
 }
+

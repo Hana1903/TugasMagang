@@ -4,15 +4,11 @@ import (
 	"crud-ukom/config"
 	"crud-ukom/models"
 	"net/http"
-	"os"
 	"regexp"
 	"time"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 )
-
-var jwtSecret = []byte(os.Getenv("JWT_SECRET")) // Mendapatkan JWT secret dari environment variable
 
 // Fungsi untuk memvalidasi apakah nomor telepon hanya berisi angka
 func isValidPhoneNumber(phone string) bool {
@@ -30,17 +26,6 @@ func hashPassword(password string) (string, error) {
 func checkPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
-}
-
-// Buat token JWT
-func generateToken(userID uint) (string, error) {
-	claims := jwt.MapClaims{
-		"user_id": userID,
-		"exp":     time.Now().Add(time.Hour * 72).Unix(), // Token berlaku selama 72 jam
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtSecret)
-	return tokenString, err
 }
 
 // Signup user baru
@@ -85,15 +70,7 @@ func Signup(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
-
-	// Generate JWT token
-	token, err := generateToken(user.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	c.JSON(http.StatusOK, gin.H{"message": "User created successfully"})
 }
 
 // Login user
@@ -120,14 +97,15 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token
-	token, err := generateToken(user.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
+	// Hapus kode berikut karena kita tidak lagi menghasilkan token JWT
+	// token, err := generateToken(user.ID)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+	// 	return
+	// }
 
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	// Cukup kirimkan pesan sukses
+	c.JSON(http.StatusOK, gin.H{"message": "Login successful"})
 }
 
 // Get all users

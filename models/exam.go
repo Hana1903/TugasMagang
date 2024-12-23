@@ -5,7 +5,7 @@ import (
 )
 
 type Exam struct {
-	ID        int       `gorm:"primaryKey"`
+	ID        int       `gorm:"primaryKey"` 
 	OrderID   int64     `json:"order_id"`
 	PacketID  int64     `json:"packet_id"`
 	UserID    int64     `json:"user_id"`
